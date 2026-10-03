@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa de Transformación - Buenos Aires</title>
+
+  <!-- Leaflet CSS (Sin API Key) -->
+  <link rel="stylesheet" href="[link removed]" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    html, body { height: 100%; width: 100%; overflow: hidden; background-color: #0b0f19; color: #e2e8f0; }
+
+    #map { height: 100vh; width: 100vw; z-index: 1; }
+
+    /* Estilo Verde Futurista / Dark Mode */
+    .landing-modal {
+      display: none; position: fixed; top: 0; right: 0; width: 100%; max-width: 450px; height: 100%;
+      background: rgba(11, 15, 25, 0.95); backdrop-filter: blur(10px); z-index: 10000;
+      border-left: 1px solid #00ff88; box-shadow: -5px 0 25px rgba(0, 255, 136, 0.2);
+      overflow-y: auto; padding: 25px; box-sizing: border-box; transition: all 0.3s ease;
+    }
+    .landing-modal.active { display: block; }
+    .close-btn { position: absolute; top: 15px; right: 20px; cursor: pointer; font-size: 28px; color: #00ff88; background: none; border: none; }
+    
+    h2 { color: #00ff88; font-size: 1.5rem; margin-bottom: 15px; text-shadow: 0 0 10px rgba(0,255,136,0.3); padding-right: 30px; }
+    h3 { color: #a7f3d0; font-size: 1rem; margin: 15px 0 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Deslizador Antes / Después */
+    .img-comp-container {
+      position: relative; height: 260px; width: 100%; overflow: hidden;
+      border-radius: 8px; border: 1px solid #00ff88; margin-bottom: 20px; background: #000;
+    }
+    .img-comp-img { position: absolute; width: 100%; height: 100%; overflow: hidden; }
+    .img-comp-img img { width: 100%; height: 260px; object-fit: cover; display: block; }
+    .img-comp-overlay { width: 50%; z-index: 2; border-right: 2px solid #00ff88; }
+    .img-label {
+      position: absolute; top: 10px; padding: 3px 8px; background: rgba(11, 15, 25, 0.8);
+      color: #00ff88; font-size: 0.75rem; border-radius: 4px; font-weight: bold; border: 1px solid #00ff88;
+    }
+    .label-antes { left: 10px; }
+    .label-despues { right: 10px; }
+    .img-comp-slider {
+      position: absolute; z-index: 9; cursor: ew-resize; width: 34px; height: 34px;
+      background-color: #00ff88; opacity: 0.9; border-radius: 50%; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); border: 2px solid #0b0f19; box-shadow: 0 0 10px #00ff88;
+    }
+
+    /* Video e Info */
+    .video-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; margin-bottom: 15px; border: 1px solid #1e293b; }
+    .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+    .tech-info { background: #131c2e; padding: 12px; border-radius: 8px; font-size: 0.9rem; line-height: 1.4; color: #cbd5e1; border: 1px solid #1e293b; }
+
+    /* Botones y Formulario */
+    .btn-relacionado {
+      display: inline-block; width: 100%; text-align: center; background: transparent;
+      color: #00ff88; border: 1px solid #00ff88; padding: 10px; border-radius: 6px;
+      cursor: pointer; font-weight: bold; margin-top: 15px; transition: all 0.2s;
+    }
+    .btn-relacionado:hover { background: rgba(0, 255, 136, 0.1); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+
+    .comment-section { margin-top: 20px; border-top: 1px solid #1e293b; padding-top: 15px; }
+    .form-group { margin-bottom: 10px; }
+    .form-group input, .form-group textarea {
+      width: 100%; padding: 10px; background: #131c2e; border: 1px solid #1e293b;
+      color: #fff; border-radius: 6px; font-size: 0.85rem;
+    }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #00ff88; }
+    .btn-submit {
+      background: #00ff88; color: #0b0f19; border: none; padding: 10px;
+      border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: all 0.2s;
+    }
+    .btn-submit:hover { background: #00cc6a; box-shadow: 0 0 10px rgba(0,255,136,0.4); }
+
+    /* Personalización de Marcadores del Mapa */
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #0b0f19; color: #00ff88; border: 1px solid #00ff88; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- Panel Desplegable para cada Punto -->
+  <div id="landingModal" class="landing-modal">
+    <button class="close-btn" onclick="cerrarModal()">&times;</button>
+    <h2 id="modalTitulo"></h2>
+
+    <!-- Deslizador Antes / Después -->
+    <div class="img-comp-container" id="sliderContainer">
+      <div class="img-comp-img">
+        <span class="img-label label-despues">DESPUÉS</span>
+        <img id="mFotoDespues" src="" alt="Después">
+      </div>
+      <div class="img-comp-img img-comp-overlay" id="overlayDiv">
+        <span class="img-label label-antes">ANTES</span>
+        <img id="mFotoAntes" src="" alt="Antes">
+      </div>
+      <div class="img-comp-slider" id="sliderBtn"></div>
+    </div>
+
+    <!-- Video -->
+    <div id="videoBox" class="video-container" style="display:none;">
+      <iframe id="modalVideo" src="" allowfullscreen></iframe>
+    </div>
+
+    <!-- Información Técnica -->
+    <h3>Información Técnica</h3>
+    <p id="modalInfo" class="tech-info"></p>
+
+    <!-- Enlace a Punto Relacionado -->
+    <div id="modalRelacionado"></div>
+
+    <!-- Formulario Integrado de Comentarios -->
+    <div class="comment-section">
+      <h3>Comentarios</h3>
+      <form id="commentForm" onsubmit="handleFormSubmit(event)">
+        <div class="form-group">
+          <input type="text" id="nombre" placeholder="Tu Nombre" required>
+        </div>
+        <div class="form-group">
+          <textarea id="comentario" rows="3" placeholder="Escribe tu comentario..." required></textarea>
+        </div>
+        <button type="submit" class="btn-submit">Enviar Comentario</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="[link removed]"></script>
+
+  <script>
+    // 1. DATOS REALES EXTRAÍDOS DE TU HOJA "Puntos P Mapa"
+    const puntos = [
+      {
+        id: "1",
+        titulo: "Paseo del Bajo",
+        lat: -34.600223,
+        lng: -58.367886,
+        fotoAntes: "[link removed]",
+        fotoDespues: "[link removed]",
+        videoUrl: "",
+        infoExtra: "Trinchera de tránsito pesado. Liberó el casco histórico y sumó 60.000 m² de parque verde.",
+        puntoRelacionadoId: "4"
+      },
+      {
+        id: "2",
+        titulo: "Parque de la Estación",
+        lat: -34.607923,
+        lng: -58.413374,
+        fotoAntes: "[link removed]",
+        fotoDespues: "[link removed]",
+        videoUrl: "",
+        infoExtra: "Recuperación de galpones abandonados en 14.000 m² de parque verde, biblioteca y polideportivo.",
+        puntoRelacionadoId: "1"
+      },
+      {
+        id: "3",
+        titulo: "Barrio Olímpico",
+        lat: -34.676316,
+        lng: -58.452971,
+        fotoAntes: "[link removed]",
+        fotoDespues: "[link removed]",
+        videoUrl: "",
+        infoExtra: "29 edificios reconvertidos en viviendas con créditos blandos + infraestructura deportiva pública.",
+        puntoRelacionadoId: "2"
+      },
+      {
+        id: "4",
+        titulo: "Viaducto Mitre",
+        lat: -34.558068,
+        lng: -58.450067,
+        fotoAntes: "[link removed]",
+        fotoDespues: "[link removed]",
+        videoUrl: "",
+        infoExtra: "Elevó las vías, eliminó 8 barreras (Juramento, Olazábal, etc.) y creó paseos comerciales.",
+        puntoRelacionadoId: "5"
+      },
+      {
+        id: "5",
+        titulo: "Parque de la Innovación",
+        lat: -34.544643,
+        lng: -58.452743,
+        fotoAntes: "[link removed]",
+        fotoDespues: "[link removed]",
+        videoUrl: "",
+        infoExtra: "Apertura de 12 hectáreas para un polo universitario, científico y tecnológico público.",
+        puntoRelacionadoId: "4"
+      }
+    ];
+
+    // 2. INICIALIZAR MAPA FUTURISTA (CartoDB Dark Matter - Sin API Key)
+    const map = L.map('map').setView([-34.6037, -58.3816], 12);
+    
+    L.tileLayer('https://{s}[link removed]{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap © CARTO'
+    }).addTo(map);
+
+    const markersMap = {};
+
+    // Icono Verde Neón Personalizado
+    const greenIcon = L.divIcon({
+      className: 'custom-icon',
+      html: `<div style="background-color:#00ff88; width:14px; height:14px; border-radius:50%; box-shadow:0 0 10px #00ff88; border:2px solid #0b0f19;"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+
+    // 3. RENDERIZAR MARCADORES
+    puntos.forEach(punto => {
+      const marker = L.marker([punto.lat, punto.lng], { icon: greenIcon }).addTo(map);
+      marker.bindTooltip(punto.titulo);
+      marker.on('click', () => abrirLanding(punto));
+      markersMap[punto.id] = { marker, data: punto };
+    });
+
+    let activePunto = null;
+
+    // 4. LÓGICA DE LA LANDING
+    function abrirLanding(punto) {
+      activePunto = punto;
+      document.getElementById('modalTitulo').innerText = punto.titulo;
+      document.getElementById('mFotoAntes').src = punto.fotoAntes;
+      document.getElementById('mFotoDespues').src = punto.fotoDespues;
+      document.getElementById('modalInfo').innerText = punto.infoExtra;
+
+      // Video (si existe)
+      const videoBox = document.getElementById('videoBox');
+      const mVideo = document.getElementById('modalVideo');
+      if (punto.videoUrl) {
+        mVideo.src = punto.videoUrl;
+        videoBox.style.display = 'block';
+      } else {
+        mVideo.src = '';
+        videoBox.style.display = 'none';
+      }
+
+      // Punto Relacionado
+      const relContainer = document.getElementById('modalRelacionado');
+      const relPunto = puntos.find(p => p.id === punto.puntoRelacionadoId);
+      if (relPunto) {
+        relContainer.innerHTML = `<button class="btn-relacionado" onclick="irAPunto('${relPunto.id}')">Ver Punto Relacionado: ${relPunto.titulo}</button>`;
+      } else {
+        relContainer.innerHTML = '';
+      }
+
+      document.getElementById('landingModal').classList.add('active');
+      initSlider();
+    }
+
+    function irAPunto(id) {
+      cerrarModal();
+      const target = markersMap[id];
+      if (target) {
+        map.flyTo([target.data.lat, target.data.lng], 15);
+        setTimeout(() => abrirLanding(target.data), 1000);
+      }
+    }
+
+    function cerrarModal() {
+      document.getElementById('landingModal').classList.remove('active');
+      document.getElementById('modalVideo').src = '';
+    }
+
+    // 5. DESLIZADOR INTERACTIVO ANTES / DESPUÉS
+    function initSlider() {
+      const overlay = document.getElementById('overlayDiv');
+      const slider = document.getElementById('sliderBtn');
+      const container = document.getElementById('sliderContainer');
+      let clicked = false;
+
+      overlay.style.width = "50%";
+      slider.style.left = "50%";
+
+      function slideMove(e) {
+        if (!clicked) return;
+        const rect = container.getBoundingClientRect();
+        let x = (e.pageX || (e.touches && e.touches[0].pageX)) - rect.left - window.scrollX;
+        if (x < 0) x = 0;
+        if (x > rect.width) x = rect.width;
+        overlay.style.width = x + "px";
+        slider.style.left = x + "px";
+      }
+
+      slider.onmousedown = () => clicked = true;
+      slider.ontouchstart = () => clicked = true;
+      window.onmouseup = () => clicked = false;
+      window.ontouchend = () => clicked = false;
+      window.onmousemove = slideMove;
+      window.ontouchmove = slideMove;
+    }
+
+    // 6. ENVÍO DE COMENTARIOS
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const nombre = document.getElementById('nombre').value;
+      alert(`¡Gracias ${nombre}! Comentario recibido para "${activePunto.titulo}".`);
+      document.getElementById('commentForm').reset();
+    }
+  </script>
+</body>
+</html>
